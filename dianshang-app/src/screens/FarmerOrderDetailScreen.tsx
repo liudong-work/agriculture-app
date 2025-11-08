@@ -501,7 +501,7 @@ export default function FarmerOrderDetailScreen() {
   }
 }
 
-function afterSaleTypeLabel(type: Order['afterSale']!['type']) {
+function afterSaleTypeLabel(type: 'refund' | 'return-refund' | 'exchange') {
   switch (type) {
     case 'refund':
       return '仅退款';
@@ -514,7 +514,7 @@ function afterSaleTypeLabel(type: Order['afterSale']!['type']) {
   }
 }
 
-function afterSaleStatusLabel(status: Order['afterSale']!['status']) {
+function afterSaleStatusLabel(status: 'applied' | 'processing' | 'resolved' | 'rejected') {
   switch (status) {
     case 'applied':
       return '已申请';

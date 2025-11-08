@@ -4,6 +4,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import AppNavigator from './AppNavigator';
 import AuthNavigator from './AuthNavigator';
 import { useAuthStore } from '../store/authStore';
+import LaunchScreen from '../screens/LaunchScreen';
 
 export default function RootNavigator() {
   const { user, accessToken, isBootstrapped, bootstrap } = useAuthStore();
@@ -13,11 +14,7 @@ export default function RootNavigator() {
   }, [bootstrap]);
 
   if (!isBootstrapped) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2e7d32" />
-      </View>
-    );
+    return <LaunchScreen />;
   }
 
   if (user && accessToken) {
@@ -26,12 +23,4 @@ export default function RootNavigator() {
 
   return <AuthNavigator />;
 }
-
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-});
 
