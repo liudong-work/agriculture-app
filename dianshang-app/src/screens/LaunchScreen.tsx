@@ -1,10 +1,17 @@
 import React from 'react';
 import { Image, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Text } from 'react-native-paper';
+import { ActivityIndicator, Button, Text } from 'react-native-paper';
 
-export default function LaunchScreen() {
+type Props = {
+  status?: 'loading' | 'error';
+  message?: string;
+  onRetry?: () => void;
+};
+
+export default function LaunchScreen({ status = 'loading', message, onRetry }: Props) {
+  const isError = status === 'error';
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isError ? styles.errorContainer : null]}>
       <View style={styles.brandBlock}>
         <Image source={require('../../assets/splash-icon.png')} style={styles.logo} resizeMode="contain" />
         <Text variant="headlineSmall" style={styles.brandName}>
@@ -15,10 +22,26 @@ export default function LaunchScreen() {
         </Text>
       </View>
       <View style={styles.loadingBlock}>
-        <ActivityIndicator animating size="large" color="#ffffff" />
-        <Text variant="bodySmall" style={styles.loadingText}>
-          正在加载应用资源，请稍候...
-        </Text>
+        {isError ? (
+          <>
+            <Text variant="titleMedium" style={styles.errorTitle}>
+              加载失败
+            </Text>
+            <Text variant="bodySmall" style={styles.errorText}>
+              {message ?? '无法初始化应用，请检查网络后重试'}
+            </Text>
+            <Button mode="contained" onPress={onRetry} style={styles.retryButton}>
+              重试
+            </Button>
+          </>
+        ) : (
+          <>
+            <ActivityIndicator animating size="large" color="#ffffff" />
+            <Text variant="bodySmall" style={styles.loadingText}>
+              正在加载应用资源，请稍候...
+            </Text>
+          </>
+        )}
       </View>
     </View>
   );
@@ -57,5 +80,23 @@ const styles = StyleSheet.create({
   loadingText: {
     color: 'rgba(255,255,255,0.9)',
     letterSpacing: 0.5,
+  },
+  errorContainer: {
+    backgroundColor: '#b71c1c',
+  },
+  errorTitle: {
+    color: '#fff',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  errorText: {
+    color: 'rgba(255,255,255,0.9)',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  retryButton: {
+    marginTop: 8,
+    borderRadius: 24,
+    paddingHorizontal: 24,
   },
 });
