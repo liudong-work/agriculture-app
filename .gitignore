@@ -1,0 +1,10 @@
+node_modules/
+backend/node_modules/
+dianshang-app/node_modules/
+backend/dist/
+backend/.env
+*.log
+.expo/
+.expo-shared/
+.env
+.DS_Store
