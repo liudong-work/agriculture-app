@@ -1,52 +1,103 @@
-import { randomUUID } from 'crypto';
-
+import { prisma } from '../lib/prisma';
 import type { Address, AddressPayload } from '../types/address';
 
-const addresses = new Map<string, Address[]>();
+function mapAddress(record: any): Address {
+  return {
+    id: record.id,
+    userId: record.userId,
+    contactName: record.contactName,
+    contactPhone: record.contactPhone,
+    province: record.province,
+    city: record.city,
+    district: record.district,
+    street: record.street,
+    detail: record.detail ?? undefined,
+    postalCode: record.postalCode ?? undefined,
+    tag: record.tag ?? undefined,
+    isDefault: record.isDefault,
+    ...(record.longitude !== null ? { longitude: record.longitude } : {}),
+    ...(record.latitude !== null ? { latitude: record.latitude } : {}),
+  };
+}
 
 export class AddressRepository {
   async listByUser(userId: string): Promise<Address[]> {
-    return addresses.get(userId) ?? [];
+    const records = await prisma.address.findMany({ where: { userId }, orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }] });
+    return records.map(mapAddress);
   }
 
   async create(userId: string, payload: AddressPayload): Promise<Address> {
-    const newAddress: Address = {
-      id: randomUUID(),
-      userId,
-      ...payload,
-    };
+    if (payload.isDefault) {
+      await prisma.address.updateMany({ where: { userId }, data: { isDefault: false } });
+    }
 
-    const userAddresses = await this.listByUser(userId);
-    userAddresses.push(newAddress);
-    addresses.set(userId, userAddresses);
+    const record = await prisma.address.create({
+      data: {
+        userId,
+        contactName: payload.contactName,
+        contactPhone: payload.contactPhone,
+        province: payload.province,
+        city: payload.city,
+        district: payload.district,
+        street: payload.street,
+        detail: payload.detail ?? null,
+        postalCode: payload.postalCode ?? null,
+        tag: payload.tag ?? null,
+        isDefault: payload.isDefault ?? false,
+        longitude: payload.longitude ?? null,
+        latitude: payload.latitude ?? null,
+      },
+    });
 
-    return newAddress;
+    return mapAddress(record);
   }
 
   async update(userId: string, addressId: string, payload: AddressPayload): Promise<Address> {
-    const userAddresses = await this.listByUser(userId);
-    const target = userAddresses.find((address) => address.id === addressId);
-    if (!target) {
+    const existing = await prisma.address.findFirst({ where: { id: addressId, userId } });
+    if (!existing) {
       const error = new Error('收货地址不存在');
       (error as any).status = 404;
       throw error;
     }
 
-    Object.assign(target, payload);
-    return target;
+    if (payload.isDefault) {
+      await prisma.address.updateMany({ where: { userId }, data: { isDefault: false } });
+    }
+
+    const record = await prisma.address.update({
+      where: { id: addressId },
+      data: {
+        contactName: payload.contactName,
+        contactPhone: payload.contactPhone,
+        province: payload.province,
+        city: payload.city,
+        district: payload.district,
+        street: payload.street,
+        detail: payload.detail ?? null,
+        postalCode: payload.postalCode ?? null,
+        tag: payload.tag ?? null,
+        isDefault: payload.isDefault ?? existing.isDefault,
+        longitude: payload.longitude ?? null,
+        latitude: payload.latitude ?? null,
+      },
+    });
+
+    return mapAddress(record);
   }
 
   async remove(userId: string, addressId: string): Promise<void> {
-    const userAddresses = await this.listByUser(userId);
-    const next = userAddresses.filter((address) => address.id !== addressId);
-    addresses.set(userId, next);
+    const existing = await prisma.address.findFirst({ where: { id: addressId, userId } });
+    if (!existing) {
+      const error = new Error('收货地址不存在');
+      (error as any).status = 404;
+      throw error;
+    }
+
+    await prisma.address.delete({ where: { id: addressId } });
   }
 
   async clearDefaultFlag(userId: string): Promise<void> {
-    const userAddresses = await this.listByUser(userId);
-    userAddresses.forEach((address) => {
-      address.isDefault = false;
-    });
+    await prisma.address.updateMany({ where: { userId }, data: { isDefault: false } });
   }
 }
 
