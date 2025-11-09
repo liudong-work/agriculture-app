@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 
@@ -8,9 +7,13 @@ import type { AuthTokens, AuthUser, LoginInput, RegisterInput } from '../types/a
 
 const userRepository = new UserRepository();
 
+function toAuthUser(storedUser: { passwordHash: string } & AuthUser): AuthUser {
+  const { passwordHash: _ignored, ...rest } = storedUser;
+  return rest;
+}
+
 export class AuthService {
   async registerUser(input: RegisterInput): Promise<AuthTokens & { user: AuthUser }> {
-    // TODO: 接入数据库，校验手机验证码等逻辑
     const exists = await userRepository.findByPhone(input.phone);
     if (exists) {
       const error = new Error('手机号已注册');
@@ -19,15 +22,15 @@ export class AuthService {
     }
 
     const hashedPassword = await bcrypt.hash(input.password, 10);
-    const user: AuthUser = {
-      id: randomUUID(),
+    const storedUser = await userRepository.create({
       phone: input.phone,
-      role: 'customer',
+      passwordHash: hashedPassword,
       ...(input.name ? { name: input.name } : {}),
-    };
+      role: 'customer',
+    });
 
+    const user = toAuthUser(storedUser);
     const tokens = this.generateTokens(user);
-    await userRepository.create({ ...user, passwordHash: hashedPassword });
 
     return { user, ...tokens };
   }
@@ -47,8 +50,7 @@ export class AuthService {
       throw error;
     }
 
-    const { passwordHash, ...user } = storedUser;
-
+    const user = toAuthUser(storedUser);
     const tokens = this.generateTokens(user);
 
     return { user, ...tokens };

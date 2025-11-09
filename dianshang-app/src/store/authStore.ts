@@ -7,6 +7,7 @@ type AuthUser = {
   name?: string;
   phone: string;
   role: 'customer' | 'farmer' | 'admin';
+  farmerProfileId?: string;
 };
 
 type AuthState = {

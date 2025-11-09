@@ -10,6 +10,7 @@ type StoredSession = {
     phone: string;
     name?: string;
     role: 'customer' | 'farmer' | 'admin';
+    farmerProfileId?: string;
   };
 };
 

@@ -19,5 +19,6 @@ export type AuthUser = {
   phone: string;
   name?: string;
   role: 'customer' | 'farmer' | 'admin';
+  farmerProfileId?: string;
 };
 

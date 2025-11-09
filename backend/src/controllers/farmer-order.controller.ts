@@ -81,7 +81,7 @@ const appendCheckpointValidators = validateRequest(farmerAppendCheckpointSchema)
 const updateAfterSaleValidators = validateRequest(farmerUpdateAfterSaleSchema);
 
 function ensureFarmer(req: Request): { id: string; role: string; farmerId: string } {
-  const user = (req as any).user as { id: string; role: string } | undefined;
+  const user = (req as any).user as { id: string; role: string; farmerProfileId?: string } | undefined;
   if (!user) {
     const error = new Error('未授权');
     (error as any).status = 401;
@@ -92,7 +92,7 @@ function ensureFarmer(req: Request): { id: string; role: string; farmerId: strin
     (error as any).status = 403;
     throw error;
   }
-  const farmerId = user.role === 'admin' ? user.id : DEFAULT_FARMER_ID;
+  const farmerId = user.role === 'admin' ? user.id : user.farmerProfileId ?? DEFAULT_FARMER_ID;
   return { ...user, farmerId };
 }
 

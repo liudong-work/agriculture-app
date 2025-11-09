@@ -1,50 +1,85 @@
-import bcrypt from 'bcrypt';
+import type { User, FarmerProfile, UserRole } from '@prisma/client';
+
+import { prisma } from '../lib/prisma';
 import type { AuthUser } from '../types/auth';
 
-type StoredUser = AuthUser & {
+export type StoredUser = AuthUser & {
   passwordHash: string;
+  farmerProfileId?: string;
 };
 
-const users = new Map<string, StoredUser>();
-let isSeeded = false;
+export type CreateUserInput = {
+  phone: string;
+  passwordHash: string;
+  name?: string;
+  role?: UserRole;
+  farmerProfile?: {
+    farmName: string;
+    description?: string;
+    id?: string;
+  };
+};
 
-function seedDefaultUsers() {
-  if (isSeeded) {
-    return;
+function mapUser(record: User & { farmerProfile: FarmerProfile | null }): StoredUser {
+  const base: StoredUser = {
+    id: record.id,
+    phone: record.phone,
+    role: record.role,
+    passwordHash: record.passwordHash,
+  };
+
+  if (record.name) {
+    base.name = record.name;
   }
 
-  const defaults: Array<{ phone: string; password: string; name: string; role: AuthUser['role'] }> = [
-    { phone: '18800000001', password: 'farmer123', name: '示例农户一号', role: 'farmer' },
-    { phone: '18800000002', password: 'farmer123', name: '示例农户二号', role: 'farmer' },
-    { phone: '18800000003', password: 'farmer123', name: '农技支持', role: 'farmer' },
-  ];
+  if (record.farmerProfile) {
+    base.farmerProfileId = record.farmerProfile.id;
+  }
 
-  defaults.forEach((item) => {
-    const user: StoredUser = {
-      id: `seed-${item.phone}`,
-      phone: item.phone,
-      name: item.name,
-      role: item.role,
-      passwordHash: bcrypt.hashSync(item.password, 10),
-    };
-    users.set(user.phone, user);
-  });
-
-  isSeeded = true;
+  return base;
 }
 
 export class UserRepository {
-  constructor() {
-    seedDefaultUsers();
-  }
+  async create(input: CreateUserInput): Promise<StoredUser> {
+    const created = await prisma.user.create({
+      data: {
+        phone: input.phone,
+        passwordHash: input.passwordHash,
+        ...(input.name ? { name: input.name } : {}),
+        role: input.role ?? 'customer',
+        ...(input.farmerProfile
+          ? {
+              farmerProfile: {
+                create: {
+                  ...(input.farmerProfile.id ? { id: input.farmerProfile.id } : {}),
+                  farmName: input.farmerProfile.farmName,
+                  ...(input.farmerProfile.description
+                    ? { description: input.farmerProfile.description }
+                    : {}),
+                },
+              },
+            }
+          : {}),
+      },
+      include: {
+        farmerProfile: true,
+      },
+    });
 
-  async create(user: StoredUser): Promise<StoredUser> {
-    users.set(user.phone, user);
-    return user;
+    return mapUser(created);
   }
 
   async findByPhone(phone: string): Promise<StoredUser | undefined> {
-    return users.get(phone);
+    const record = await prisma.user.findUnique({
+      where: { phone },
+      include: { farmerProfile: true },
+    });
+
+    if (!record) {
+      return undefined;
+    }
+
+    return mapUser(record);
   }
 }
 

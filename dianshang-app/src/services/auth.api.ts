@@ -18,7 +18,8 @@ type AuthResponse = {
       id: string;
       phone: string;
       name?: string;
-      role: 'customer' | 'farmer' | 'admin';
+      role: string;
+      farmerProfileId?: string;
     };
     accessToken: string;
   };
