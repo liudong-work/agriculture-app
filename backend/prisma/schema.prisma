@@ -124,6 +124,8 @@ model Order {
   address      String
   note         String?
   paymentMethod PaymentMethod
+  cancellationReason String?
+  cancellationAt     DateTime?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   items        OrderItem[]
@@ -184,9 +186,11 @@ model AfterSale {
   status          AfterSaleStatus @default(applied)
   reason          String
   description     String?
+  attachments     String[]       @default([])
   resolutionNote  String?
   refundAmount    Decimal?        @db.Decimal(12, 2)
   refundMethod    RefundMethod?
+  refundReferenceId String?
   refundCompletedAt DateTime?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt

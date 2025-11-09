@@ -1,21 +1,19 @@
-import { randomUUID } from 'crypto';
-
 import { CartRepository } from '../repositories/cart.repository';
 import { OrderRepository } from '../repositories/order.repository';
 import { ProductRepository } from '../repositories/product.repository';
 import { DEFAULT_FARMER_ID } from '../constants/farmer';
+import type {
+  UpdateStatusOptions,
+  ApplyAfterSaleOptions,
+  UpdateAfterSaleOptions,
+} from '../repositories/order.repository';
 import type { CartResult } from '../types/cart';
 import type {
-  AfterSaleInfo,
   AfterSaleStatus,
-  AfterSaleRefundInfo,
-  LogisticsCheckpoint,
   Order,
   OrderListParams,
   OrderListResult,
-  OrderLogistics,
   OrderStatus,
-  OrderStatusHistoryEntry,
   PaymentMethod,
 } from '../types/order';
 import { calculateCartSummary } from './cart.service';
@@ -23,6 +21,9 @@ import { calculateCartSummary } from './cart.service';
 const cartRepository = new CartRepository();
 const orderRepository = new OrderRepository();
 const productRepository = new ProductRepository();
+
+const FALLBACK_THUMBNAIL =
+  'https://images.unsplash.com/photo-1502741338009-cac2772e18bc?auto=format&fit=crop&w=1200&q=60';
 
 export type CreateOrderPayload = {
   contactName: string;
@@ -128,12 +129,9 @@ export class OrderService {
     const orderFarmerId = farmerIds.values().next().value ?? DEFAULT_FARMER_ID;
 
     const orderItems = enrichedItems.map((item) => ({
-      id: randomUUID(),
       productId: item.product.id,
       name: item.product.name,
-      thumbnail:
-        item.product.images[0] ??
-        'https://images.unsplash.com/photo-1502741338009-cac2772e18bc?auto=format&fit=crop&w=1200&q=60',
+      thumbnail: item.product.images[0] ?? FALLBACK_THUMBNAIL,
       unit: item.product.unit,
       price: item.product.price,
       quantity: item.quantity,
@@ -145,34 +143,21 @@ export class OrderService {
       await productRepository.adjustStock(item.product.id, -item.quantity);
     }
 
-    const now = new Date().toISOString();
-    const historyEntry: OrderStatusHistoryEntry = {
-      status: 'pending',
-      timestamp: now,
-      note: '订单已创建',
-    };
-
-    const orderBase: Omit<Order, 'note'> = {
-      id: `order-${Date.now()}-${randomUUID().slice(0, 6)}`,
-      userId,
+    const order = await orderRepository.create({
+      customerId: userId,
       farmerId: orderFarmerId,
-      status: 'pending',
-      createdAt: now,
       subtotal: summary.subtotal,
       discount: summary.discount,
       deliveryFee: summary.deliveryFee,
       total: summary.total,
-      items: orderItems,
       contactName: payload.contactName,
       contactPhone: payload.contactPhone,
       address: payload.address,
       paymentMethod: payload.paymentMethod,
-      statusHistory: [historyEntry],
-    };
-
-    const order: Order = payload.note ? { ...orderBase, note: payload.note } : orderBase;
-
-    await orderRepository.create(order);
+      items: orderItems,
+      initialNote: '订单已创建',
+      ...(payload.note ? { note: payload.note } : {}),
+    });
 
     const remainingCartItems = rawCartItems.filter((item) => !item.selected);
     await cartRepository.saveCart(userId, remainingCartItems);
@@ -185,7 +170,7 @@ export class OrderService {
   }
 
   async getOrderDetail(userId: string, orderId: string): Promise<Order> {
-    const order = await orderRepository.findById(userId, orderId);
+    const order = await orderRepository.findByCustomer(orderId, userId);
     if (!order) {
       const error = new Error('订单不存在');
       (error as any).status = 404;
@@ -200,148 +185,6 @@ export class OrderService {
     payload: UpdateOrderStatusPayload,
   ): Promise<Order> {
     const order = await this.getOrderDetail(userId, orderId);
-    return this.applyUpdateStatus(order, payload);
-  }
-
-  async setLogistics(
-    userId: string,
-    orderId: string,
-    payload: SetLogisticsPayload,
-  ): Promise<Order> {
-    const order = await this.getOrderDetail(userId, orderId);
-    return this.applySetLogistics(order, payload);
-  }
-
-  async appendLogisticsCheckpoint(
-    userId: string,
-    orderId: string,
-    payload: LogisticsCheckpointPayload,
-  ): Promise<Order> {
-    const order = await this.getOrderDetail(userId, orderId);
-    return this.applyAppendLogistics(order, payload);
-  }
-
-  async cancelOrder(userId: string, orderId: string, payload: CancelOrderPayload): Promise<Order> {
-    const order = await this.getOrderDetail(userId, orderId);
-    if (!['pending', 'processing'].includes(order.status)) {
-      const error = new Error('当前订单状态不支持取消');
-      (error as any).status = 400;
-      throw error;
-    }
-
-    const timestamp = new Date().toISOString();
-    order.status = 'cancelled';
-    order.cancellation = {
-      reason: payload.reason,
-      cancelledAt: timestamp,
-    };
-    order.statusHistory.push({
-      status: 'cancelled',
-      timestamp,
-      note: payload.reason,
-    });
-
-    return order;
-  }
-
-  async applyAfterSale(userId: string, orderId: string, payload: AfterSalePayload): Promise<Order> {
-    const order = await this.getOrderDetail(userId, orderId);
-    if (!['shipped', 'completed'].includes(order.status)) {
-      const error = new Error('仅支持已发货或已完成的订单申请售后');
-      (error as any).status = 400;
-      throw error;
-    }
-
-    const timestamp = new Date().toISOString();
-    const afterSale: AfterSaleInfo = {
-      type: payload.type,
-      reason: payload.reason,
-      status: 'applied',
-      appliedAt: timestamp,
-      updatedAt: timestamp,
-    };
-    if (payload.description) {
-      afterSale.description = payload.description;
-    }
-    if (payload.attachments && payload.attachments.length > 0) {
-      afterSale.attachments = payload.attachments;
-    }
-
-    order.afterSale = afterSale;
-    order.status = 'after-sale';
-    order.statusHistory.push({
-      status: 'after-sale',
-      timestamp,
-      note: payload.reason,
-    });
-
-    return order;
-  }
-
-  async updateAfterSale(
-    userId: string,
-    orderId: string,
-    payload: UpdateAfterSalePayload,
-  ): Promise<Order> {
-    const order = await this.getOrderDetail(userId, orderId);
-    return this.applyUpdateAfterSale(order, payload);
-  }
-
-  async listOrdersForFarmer(farmerId: string, params: OrderListParams): Promise<OrderListResult> {
-    return orderRepository.listByFarmer(farmerId, params);
-  }
-
-  async getOrderDetailForFarmer(farmerId: string, orderId: string): Promise<Order> {
-    return this.getOrderForFarmer(orderId, farmerId);
-  }
-
-  async updateOrderStatusForFarmer(
-    farmerId: string,
-    orderId: string,
-    payload: UpdateOrderStatusPayload,
-  ): Promise<Order> {
-    const order = await this.getOrderForFarmer(orderId, farmerId);
-    return this.applyUpdateStatus(order, payload);
-  }
-
-  async setLogisticsForFarmer(
-    farmerId: string,
-    orderId: string,
-    payload: SetLogisticsPayload,
-  ): Promise<Order> {
-    const order = await this.getOrderForFarmer(orderId, farmerId);
-    return this.applySetLogistics(order, payload);
-  }
-
-  async appendLogisticsCheckpointForFarmer(
-    farmerId: string,
-    orderId: string,
-    payload: LogisticsCheckpointPayload,
-  ): Promise<Order> {
-    const order = await this.getOrderForFarmer(orderId, farmerId);
-    return this.applyAppendLogistics(order, payload);
-  }
-
-  async updateAfterSaleForFarmer(
-    farmerId: string,
-    orderId: string,
-    payload: UpdateAfterSalePayload,
-  ): Promise<Order> {
-    const order = await this.getOrderForFarmer(orderId, farmerId);
-    return this.applyUpdateAfterSale(order, payload);
-  }
-
-  private async getOrderForFarmer(orderId: string, farmerId: string): Promise<Order> {
-    const order = await orderRepository.findByIdGlobal(orderId);
-    if (!order || order.farmerId !== farmerId) {
-      const error = new Error('订单不存在');
-      (error as any).status = 404;
-      throw error;
-    }
-    return order;
-  }
-
-  private applyUpdateStatus(order: Order, payload: UpdateOrderStatusPayload): Order {
     if (order.status === payload.status) {
       return order;
     }
@@ -363,88 +206,92 @@ export class OrderService {
     }
 
     const timestamp = new Date().toISOString();
-    order.status = payload.status;
-    const historyEntry: OrderStatusHistoryEntry = {
+    const updateOptions: UpdateStatusOptions = {
       status: payload.status,
-      timestamp,
     };
-    if (payload.note) {
-      historyEntry.note = payload.note;
+
+    if (payload.note && payload.note.trim().length > 0) {
+      updateOptions.note = payload.note;
     }
-    order.statusHistory.push(historyEntry);
 
     if (payload.status === 'cancelled') {
-      order.cancellation = {
+      updateOptions.cancellation = {
         reason: payload.note ?? '用户取消订单',
-        cancelledAt: timestamp,
       };
     }
 
     if (payload.status === 'completed' && order.afterSale) {
-      order.afterSale.status = 'resolved';
-      order.afterSale.updatedAt = timestamp;
-      order.afterSale.resolutionNote = payload.note ?? '售后已完成';
+      updateOptions.resolveAfterSale = {
+        note: payload.note ?? '售后已完成',
+      };
     }
 
-    return order;
+    const updated = await orderRepository.updateStatus(orderId, updateOptions);
+
+    return updated;
   }
 
-  private applySetLogistics(order: Order, payload: SetLogisticsPayload): Order {
+  async setLogistics(
+    userId: string,
+    orderId: string,
+    payload: SetLogisticsPayload,
+  ): Promise<Order> {
+    const order = await this.getOrderDetail(userId, orderId);
     if (order.status === 'cancelled') {
       const error = new Error('已取消的订单无法更新物流信息');
       (error as any).status = 400;
       throw error;
     }
 
-    const timestamp = new Date().toISOString();
-    const logistics: OrderLogistics = {
-      carrier: payload.carrier,
-      trackingNumber: payload.trackingNumber,
-      updatedAt: timestamp,
-      checkpoints: order.logistics?.checkpoints ?? [],
-    };
-    if (payload.contactPhone) {
-      logistics.contactPhone = payload.contactPhone;
-    }
-
-    order.logistics = logistics;
-    return order;
+    return orderRepository.setLogistics(orderId, payload);
   }
 
-  private applyAppendLogistics(order: Order, payload: LogisticsCheckpointPayload): Order {
-    if (!order.logistics) {
-      const error = new Error('请先填写物流承运信息');
+  async appendLogisticsCheckpoint(
+    userId: string,
+    orderId: string,
+    payload: LogisticsCheckpointPayload,
+  ): Promise<Order> {
+    await this.getOrderDetail(userId, orderId);
+    return orderRepository.appendLogisticsCheckpoint(orderId, payload);
+  }
+
+  async cancelOrder(userId: string, orderId: string, payload: CancelOrderPayload): Promise<Order> {
+    const order = await this.getOrderDetail(userId, orderId);
+    if (!['pending', 'processing'].includes(order.status)) {
+      const error = new Error('当前订单状态不支持取消');
       (error as any).status = 400;
       throw error;
     }
 
-    const timestamp = new Date().toISOString();
-    const checkpoint: LogisticsCheckpoint = {
-      status: payload.status,
-      timestamp,
-    };
-    if (payload.description) {
-      checkpoint.description = payload.description;
-    }
-    if (payload.location) {
-      checkpoint.location = payload.location;
-    }
-    order.logistics.checkpoints.push(checkpoint);
-    order.logistics.updatedAt = timestamp;
-
-    if (payload.status === '已签收' && order.status !== 'completed') {
-      order.status = 'completed';
-      order.statusHistory.push({
-        status: 'completed',
-        timestamp,
-        note: '物流签收自动完成订单',
-      });
-    }
-
-    return order;
+    return orderRepository.cancelOrder(orderId, payload.reason, payload.reason);
   }
 
-  private applyUpdateAfterSale(order: Order, payload: UpdateAfterSalePayload): Order {
+  async applyAfterSale(userId: string, orderId: string, payload: AfterSalePayload): Promise<Order> {
+    const order = await this.getOrderDetail(userId, orderId);
+    if (!['shipped', 'completed'].includes(order.status)) {
+      const error = new Error('仅支持已发货或已完成的订单申请售后');
+      (error as any).status = 400;
+      throw error;
+    }
+
+    const applyOptions: ApplyAfterSaleOptions = {
+      type: payload.type,
+      reason: payload.reason,
+      ...(payload.description ? { description: payload.description } : {}),
+      ...(payload.attachments && payload.attachments.length > 0
+        ? { attachments: payload.attachments }
+        : {}),
+    };
+
+    return orderRepository.applyAfterSale(orderId, applyOptions);
+  }
+
+  async updateAfterSale(
+    userId: string,
+    orderId: string,
+    payload: UpdateAfterSalePayload,
+  ): Promise<Order> {
+    const order = await this.getOrderDetail(userId, orderId);
     if (!order.afterSale) {
       const error = new Error('该订单尚未申请售后');
       (error as any).status = 400;
@@ -458,43 +305,97 @@ export class OrderService {
       rejected: [],
     };
 
-    const currentStatus = order.afterSale.status;
+    const currentAfterSale = order.afterSale!;
+    const currentStatus = currentAfterSale.status;
     if (!(allowedNextStatuses[currentStatus] ?? []).includes(payload.status)) {
       const error = new Error(`售后状态无法从 ${currentStatus} 流转到 ${payload.status}`);
       (error as any).status = 400;
       throw error;
     }
 
-    const timestamp = new Date().toISOString();
-    order.afterSale.status = payload.status;
-    order.afterSale.updatedAt = timestamp;
-    if (payload.resolutionNote) {
-      order.afterSale.resolutionNote = payload.resolutionNote;
-    }
-    if (payload.refund) {
-      const refundInfo: AfterSaleRefundInfo = {
-        amount: payload.refund.amount,
-        method: payload.refund.method,
-        completedAt: payload.refund.completedAt ?? timestamp,
-      };
-      if (payload.refund.referenceId) {
-        refundInfo.referenceId = payload.refund.referenceId;
-      }
-      order.afterSale.refund = refundInfo;
-    }
+    let nextOrderStatus: OrderStatus | undefined;
+    let nextOrderStatusNote: string | undefined;
 
-    order.statusHistory.push({
-      status: 'after-sale',
-      timestamp,
-      note: payload.resolutionNote ?? `售后状态更新：${payload.status}`,
-    });
-
-    if (payload.status === 'resolved' && order.afterSale.type === 'refund') {
-      order.status = 'completed';
+    if (payload.status === 'resolved' && currentAfterSale.type === 'refund') {
+      nextOrderStatus = 'completed';
+      nextOrderStatusNote = payload.resolutionNote ?? '售后已完成';
     } else if (payload.status === 'rejected' && ['pending', 'processing'].includes(order.status)) {
-      order.status = 'processing';
+      nextOrderStatus = 'processing';
     }
 
+    const updateOptions: UpdateAfterSaleOptions = {
+      status: payload.status,
+      ...(payload.resolutionNote ? { resolutionNote: payload.resolutionNote } : {}),
+      ...(payload.refund
+        ? {
+            refund: {
+              amount: payload.refund.amount,
+              method: payload.refund.method,
+              ...(payload.refund.completedAt ? { completedAt: payload.refund.completedAt } : {}),
+              ...(payload.refund.referenceId ? { referenceId: payload.refund.referenceId } : {}),
+            },
+          }
+        : {}),
+      ...(nextOrderStatus ? { orderStatus: nextOrderStatus } : {}),
+      ...(nextOrderStatusNote ? { orderStatusNote: nextOrderStatusNote } : {}),
+    };
+
+    const updated = await orderRepository.updateAfterSale(orderId, updateOptions);
+
+    return updated;
+  }
+
+  async listOrdersForFarmer(farmerId: string, params: OrderListParams): Promise<OrderListResult> {
+    return orderRepository.listByFarmer(farmerId, params);
+  }
+
+  async getOrderDetailForFarmer(farmerId: string, orderId: string): Promise<Order> {
+    return this.getOrderForFarmer(orderId, farmerId);
+  }
+
+  async updateOrderStatusForFarmer(
+    farmerId: string,
+    orderId: string,
+    payload: UpdateOrderStatusPayload,
+  ): Promise<Order> {
+    const order = await this.getOrderForFarmer(orderId, farmerId);
+    return this.updateOrderStatus(order.userId, orderId, payload);
+  }
+
+  async setLogisticsForFarmer(
+    farmerId: string,
+    orderId: string,
+    payload: SetLogisticsPayload,
+  ): Promise<Order> {
+    const order = await this.getOrderForFarmer(orderId, farmerId);
+    return this.setLogistics(order.userId, orderId, payload);
+  }
+
+  async appendLogisticsCheckpointForFarmer(
+    farmerId: string,
+    orderId: string,
+    payload: LogisticsCheckpointPayload,
+  ): Promise<Order> {
+    const order = await this.getOrderForFarmer(orderId, farmerId);
+    return this.appendLogisticsCheckpoint(order.userId, orderId, payload);
+  }
+
+  async updateAfterSaleForFarmer(
+    farmerId: string,
+    orderId: string,
+    payload: UpdateAfterSalePayload,
+  ): Promise<Order> {
+    const order = await this.getOrderForFarmer(orderId, farmerId);
+    return this.updateAfterSale(order.userId, orderId, payload);
+  }
+
+  private async getOrderForFarmer(orderId: string, farmerId: string): Promise<Order> {
+    const order = await orderRepository.findById(orderId);
+    if (!order || order.farmerId !== farmerId) {
+      const error = new Error('订单不存在');
+      (error as any).status = 404;
+      throw error;
+    }
     return order;
   }
 }
