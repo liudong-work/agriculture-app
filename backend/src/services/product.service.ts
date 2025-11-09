@@ -1,4 +1,5 @@
 import { ProductRepository } from '../repositories/product.repository';
+import { DEFAULT_FARMER_ID } from '../constants/farmer';
 import {
   CreateProductInput,
   ProductListParams,
@@ -25,7 +26,7 @@ export class ProductService {
     return product;
   }
 
-  async createProduct(payload: CreateProductInput): Promise<Product> {
+  async createProduct(payload: CreateProductInput, farmerId?: string): Promise<Product> {
     const trimmedName = payload.name.trim();
     if (!trimmedName) {
       const error = new Error('商品名称不能为空');
@@ -39,7 +40,7 @@ export class ProductService {
       throw error;
     }
 
-    return productRepository.create({
+    return productRepository.create(farmerId ?? DEFAULT_FARMER_ID, {
       ...payload,
       name: trimmedName,
       images: payload.images.map((url) => url.trim()).filter(Boolean),

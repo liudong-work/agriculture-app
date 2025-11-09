@@ -99,7 +99,7 @@ export const getProductDetail = asyncHandler(async (req: Request, res: Response)
 });
 
 export const createProduct = asyncHandler(async (req: Request, res: Response) => {
-  const user = (req as any).user as { id: string; role: string } | undefined;
+  const user = (req as any).user as { id: string; role: string; farmerProfileId?: string } | undefined;
   if (!user) {
     return res.status(401).json({ success: false, message: '未授权' });
   }
@@ -109,7 +109,8 @@ export const createProduct = asyncHandler(async (req: Request, res: Response) =>
   }
 
   const { body } = createSchema.parse({ body: req.body });
-  const product = await productService.createProduct(body);
+  const farmerId = user.role === 'admin' ? user.id : user.farmerProfileId;
+  const product = await productService.createProduct(body, farmerId);
   res.status(201).json({ success: true, data: product });
 });
 

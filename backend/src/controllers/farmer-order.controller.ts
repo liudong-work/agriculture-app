@@ -5,12 +5,12 @@ import { asyncHandler } from '../middleware/async-handler';
 import { validateRequest } from '../middleware/validate-request';
 import {
   OrderService,
-  DEFAULT_FARMER_ID,
   type LogisticsCheckpointPayload,
   type SetLogisticsPayload,
   type UpdateAfterSalePayload,
   type UpdateOrderStatusPayload,
 } from '../services/order.service';
+import { DEFAULT_FARMER_ID } from '../constants/farmer';
 
 const orderService = new OrderService();
 

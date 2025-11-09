@@ -10,10 +10,12 @@ type ProductListParams = {
   sortBy?: 'price' | 'name' | 'stock';
   sortOrder?: 'asc' | 'desc';
   status?: ProductStatus | 'all';
+  farmerId?: string;
 };
 
 export type ProductListItem = {
   id: string;
+  farmerId?: string;
   name: string;
   price: number;
   unit: string;
@@ -28,6 +30,7 @@ export type ProductListItem = {
 
 export type ProductDetail = {
   id: string;
+  farmerId?: string;
   name: string;
   description?: string | undefined;
   images: string[];
@@ -89,6 +92,7 @@ export type UpdateProductPayload = {
   seasonalTag?: string | undefined;
   isOrganic?: boolean | undefined;
   stock?: number | undefined;
+  status?: ProductStatus | undefined;
 };
 
 export async function fetchProductList(params: ProductListParams = {}) {

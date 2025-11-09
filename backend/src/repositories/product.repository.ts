@@ -1,242 +1,308 @@
-import { Product, ProductListParams, ProductListResult, ProductStatus, UpdateProductInput } from '../types/product';
-import { randomUUID } from 'crypto';
+import { Prisma } from '@prisma/client';
 
-const products: Product[] = [
-  {
-    id: 'prod-1',
-    name: '赣南脐橙 5kg 装',
-    description: '从赣南果园直采，汁多味甜，富含维 C。',
-    images: [
-      'https://images.unsplash.com/photo-1615485290382-aca3bd1ccae1?auto=format&fit=crop&w=1200&q=60',
-      'https://images.unsplash.com/photo-1601000938259-9aa182b95b07?auto=format&fit=crop&w=1200&q=60',
-    ],
-    price: 69.9,
-    originalPrice: 89.9,
-    unit: '箱',
-    origin: '江西赣州',
-    categoryId: 'cat-1',
-    seasonalTag: '当季热卖',
-    isOrganic: false,
-    stock: 128,
-    status: 'active',
-  },
-  {
-    id: 'prod-2',
-    name: '崂山有机芹菜 1.5kg',
-    description: '通过有机认证，全程冷链配送。',
-    images: [
-      'https://images.unsplash.com/photo-1543248939-d74ff3d9d1b6?auto=format&fit=crop&w=1200&q=60',
-    ],
-    price: 32.5,
-    unit: '份',
-    origin: '山东青岛',
-    categoryId: 'cat-2',
-    seasonalTag: '绿色有机',
-    isOrganic: true,
-    stock: 75,
-    status: 'active',
-  },
-  {
-    id: 'prod-3',
-    name: '五常稻花香大米 5kg',
-    description: '冷水浸种，稻花香 2 号，米香软糯。',
-    images: [
-      'https://images.unsplash.com/photo-1472145246862-b24cf25c4a36?auto=format&fit=crop&w=1200&q=60',
-    ],
-    price: 109.0,
-    unit: '袋',
-    origin: '黑龙江五常',
-    categoryId: 'cat-3',
-    stock: 54,
-    status: 'active',
-  },
-  {
-    id: 'prod-4',
-    name: '散养土鸡蛋 30 枚',
-    description: '农户散养，蛋香浓郁，营养丰富。',
-    images: [
-      'https://images.unsplash.com/photo-1517959105821-eaf2591984d5?auto=format&fit=crop&w=1200&q=60',
-    ],
-    price: 52.9,
-    unit: '盒',
-    origin: '安徽黄山',
-    categoryId: 'cat-4',
-    stock: 210,
-    status: 'active',
-  },
-  {
-    id: 'prod-5',
-    name: '阳澄湖大闸蟹 礼盒装',
-    description: '鲜活直送，公蟹 3.0 两、母蟹 2.5 两，配姜茶。',
-    images: [
-      'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=1200&q=60',
-    ],
-    price: 298.0,
-    unit: '盒',
-    origin: '江苏苏州',
-    categoryId: 'cat-5',
-    stock: 32,
-    status: 'active',
-  },
-  {
-    id: 'prod-6',
-    name: '云南鲜花饼礼盒',
-    description: '玫瑰花瓣内馅，香甜软糯，伴手礼首选。',
-    images: [
-      'https://images.unsplash.com/photo-1519869325930-281384150729?auto=format&fit=crop&w=1200&q=60',
-    ],
-    price: 58.0,
-    unit: '盒',
-    origin: '云南昆明',
-    categoryId: 'cat-6',
-    stock: 142,
-    status: 'inactive',
-  },
-];
+import { prisma } from '../lib/prisma';
+import type {
+  CreateProductInput,
+  Product,
+  ProductListItem,
+  ProductListParams,
+  ProductListResult,
+  ProductStatus,
+  UpdateProductInput,
+} from '../types/product';
+import { DEFAULT_FARMER_ID } from '../constants/farmer';
+
+const FALLBACK_THUMBNAIL =
+  'https://images.unsplash.com/photo-1502741338009-cac2772e18bc?auto=format&fit=crop&w=1200&q=60';
+
+type PrismaProduct = Prisma.ProductGetPayload<{ include: { images: { orderBy: { sortOrder: 'asc' } } } }>;
+
+function normalizeProduct(record: PrismaProduct): Product {
+  const images = record.images
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((image) => image.url);
+
+  return {
+    id: record.id,
+    farmerId: record.farmerId,
+    name: record.name,
+    description: record.description ?? undefined,
+    images,
+    price: Number(record.price),
+    originalPrice: record.originalPrice ? Number(record.originalPrice) : undefined,
+    unit: record.unit,
+    origin: record.origin,
+    categoryId: record.categoryId,
+    seasonalTag: record.seasonalTag ?? undefined,
+    isOrganic: record.isOrganic ?? undefined,
+    stock: record.stock,
+    status: record.status,
+  };
+}
+
+function toListItem(record: PrismaProduct): ProductListItem {
+  const product = normalizeProduct(record);
+  return {
+    id: product.id,
+    farmerId: product.farmerId,
+    name: product.name,
+    price: product.price,
+    unit: product.unit,
+    origin: product.origin,
+    categoryId: product.categoryId,
+    thumbnail: product.images[0] ?? FALLBACK_THUMBNAIL,
+    stock: product.stock,
+    status: product.status,
+    ...(product.seasonalTag ? { seasonalTag: product.seasonalTag } : {}),
+    ...(product.isOrganic !== undefined ? { isOrganic: product.isOrganic } : {}),
+  };
+}
 
 export class ProductRepository {
-  async create(product: Omit<Product, 'id'> & { id?: string }): Promise<Product> {
-    const newProduct: Product = {
-      id: product.id ?? randomUUID(),
-      ...product,
-      status: product.status ?? 'active',
-    } as Product;
-    products.unshift(newProduct);
-    return newProduct;
+  async create(farmerId: string | undefined, payload: CreateProductInput): Promise<Product> {
+    const images = payload.images.map((url) => url.trim()).filter(Boolean);
+
+    const record = await prisma.product.create({
+      data: {
+        farmerId: farmerId ?? DEFAULT_FARMER_ID,
+        name: payload.name,
+        description: payload.description ?? null,
+        price: payload.price,
+        originalPrice: payload.originalPrice ?? null,
+        unit: payload.unit,
+        origin: payload.origin,
+        categoryId: payload.categoryId,
+        seasonalTag: payload.seasonalTag ?? null,
+        isOrganic: payload.isOrganic ?? null,
+        stock: payload.stock,
+        status: payload.status ?? 'active',
+        images: {
+          create: images.map((url, index) => ({
+            url,
+            sortOrder: index,
+            isCover: index === 0,
+          })),
+        },
+      },
+      include: {
+        images: {
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    });
+
+    return normalizeProduct(record);
   }
 
   async list(params: ProductListParams): Promise<ProductListResult> {
     const page = params.page ?? 1;
     const pageSize = params.pageSize ?? 10;
-    const keyword = params.keyword?.toLowerCase();
-    const categoryId = params.categoryId;
+    const keyword = params.keyword?.trim();
     const sortBy = params.sortBy;
     const sortOrder = params.sortOrder ?? 'asc';
     const statusFilter = params.status ?? 'active';
 
-    let filtered = [...products];
+    const where: Prisma.ProductWhereInput = {};
 
     if (keyword) {
-      filtered = filtered.filter((product) => product.name.toLowerCase().includes(keyword));
+      where.name = { contains: keyword, mode: 'insensitive' };
     }
 
-    if (categoryId) {
-      filtered = filtered.filter((product) => product.categoryId === categoryId);
+    if (params.categoryId) {
+      where.categoryId = params.categoryId;
+    }
+
+    if (params.farmerId) {
+      where.farmerId = params.farmerId;
     }
 
     if (statusFilter !== 'all') {
-      filtered = filtered.filter((product) => product.status === statusFilter);
+      where.status = statusFilter;
     }
+
+    const orderBy: Prisma.ProductOrderByWithRelationInput[] = [];
 
     if (sortBy) {
-      const multiplier = sortOrder === 'desc' ? -1 : 1;
-      filtered.sort((a, b) => {
-        switch (sortBy) {
-          case 'price':
-            return (a.price - b.price) * multiplier;
-          case 'name':
-            return a.name.localeCompare(b.name, 'zh-CN') * multiplier;
-          case 'stock':
-            return (a.stock - b.stock) * multiplier;
-          default:
-            return 0;
-        }
-      });
+      if (sortBy === 'price') {
+        orderBy.push({ price: sortOrder });
+      } else if (sortBy === 'name') {
+        orderBy.push({ name: sortOrder });
+      } else if (sortBy === 'stock') {
+        orderBy.push({ stock: sortOrder });
+      }
     }
 
-    const total = filtered.length;
-    const start = (page - 1) * pageSize;
-    const items = filtered.slice(start, start + pageSize).map((product) => {
-      const item = {
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        unit: product.unit,
-        origin: product.origin,
-        categoryId: product.categoryId,
-        thumbnail:
-          product.images[0] ??
-          'https://images.unsplash.com/photo-1502741338009-cac2772e18bc?auto=format&fit=crop&w=1200&q=60',
-        stock: product.stock,
-        status: product.status,
-      } as ProductListResult['items'][number];
+    if (orderBy.length === 0) {
+      orderBy.push({ createdAt: 'desc' });
+    }
 
-      if (product.seasonalTag) {
-        item.seasonalTag = product.seasonalTag;
-      }
-      if (product.isOrganic !== undefined) {
-        item.isOrganic = product.isOrganic;
-      }
+    const [records, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        include: {
+          images: {
+            orderBy: { sortOrder: 'asc' },
+          },
+        },
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.product.count({ where }),
+    ]);
 
-      return item;
-    });
+    const items = records.map(toListItem);
 
     return { items, total, page, pageSize };
   }
 
   async findById(productId: string): Promise<Product | undefined> {
-    return products.find((product) => product.id === productId);
+    const record = await prisma.product.findUnique({
+      where: { id: productId },
+      include: {
+        images: {
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    });
+
+    if (!record) {
+      return undefined;
+    }
+
+    return normalizeProduct(record);
   }
 
   async adjustStock(productId: string, delta: number): Promise<Product> {
-    const product = await this.findById(productId);
-    if (!product) {
-      const error = new Error('商品不存在');
-      (error as any).status = 404;
-      throw error;
-    }
+    const record = await prisma.$transaction(async (tx) => {
+      const existing = await tx.product.findUnique({
+        where: { id: productId },
+        include: { images: { orderBy: { sortOrder: 'asc' } } },
+      });
 
-    const nextStock = product.stock + delta;
-    if (nextStock < 0) {
-      const error = new Error('库存不足');
-      (error as any).status = 400;
-      throw error;
-    }
+      if (!existing) {
+        const error = new Error('商品不存在');
+        (error as any).status = 404;
+        throw error;
+      }
 
-    product.stock = nextStock;
-    return product;
+      const nextStock = existing.stock + delta;
+      if (nextStock < 0) {
+        const error = new Error('库存不足');
+        (error as any).status = 400;
+        throw error;
+      }
+
+      await tx.product.update({
+        where: { id: productId },
+        data: { stock: nextStock },
+      });
+
+      return tx.product.findUnique({
+        where: { id: productId },
+        include: { images: { orderBy: { sortOrder: 'asc' } } },
+      });
+    });
+
+    return normalizeProduct(record!);
   }
 
   async setStock(productId: string, stock: number): Promise<Product> {
-    const product = await this.findById(productId);
-    if (!product) {
-      const error = new Error('商品不存在');
-      (error as any).status = 404;
-      throw error;
-    }
-
     if (stock < 0) {
       const error = new Error('库存数量不合法');
       (error as any).status = 400;
       throw error;
     }
 
-    product.stock = stock;
-    return product;
+    const record = await prisma.product.update({
+      where: { id: productId },
+      data: { stock },
+      include: { images: { orderBy: { sortOrder: 'asc' } } },
+    });
+
+    return normalizeProduct(record);
   }
 
   async update(productId: string, payload: UpdateProductInput): Promise<Product> {
-    const product = await this.findById(productId);
-    if (!product) {
-      const error = new Error('商品不存在');
-      (error as any).status = 404;
-      throw error;
+    const sanitized: Prisma.ProductUpdateInput = {};
+
+    if (payload.name !== undefined) {
+      sanitized.name = payload.name;
+    }
+    if (payload.description !== undefined) {
+      sanitized.description = payload.description ?? null;
+    }
+    if (payload.price !== undefined) {
+      sanitized.price = payload.price;
+    }
+    if (payload.originalPrice !== undefined) {
+      sanitized.originalPrice = payload.originalPrice ?? null;
+    }
+    if (payload.unit !== undefined) {
+      sanitized.unit = payload.unit;
+    }
+    if (payload.origin !== undefined) {
+      sanitized.origin = payload.origin;
+    }
+    if (payload.categoryId !== undefined) {
+      sanitized.categoryId = payload.categoryId;
+    }
+    if (payload.seasonalTag !== undefined) {
+      sanitized.seasonalTag = payload.seasonalTag ?? null;
+    }
+    if (payload.isOrganic !== undefined) {
+      sanitized.isOrganic = payload.isOrganic;
+    }
+    if (payload.stock !== undefined) {
+      sanitized.stock = payload.stock;
+    }
+    if (payload.status !== undefined) {
+      sanitized.status = payload.status;
     }
 
-    Object.assign(product, Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined)));
-    return product;
+    const record = await prisma.$transaction(async (tx) => {
+      await tx.product.update({ where: { id: productId }, data: sanitized });
+
+      if (payload.images !== undefined) {
+        const images = payload.images.map((url) => url.trim()).filter(Boolean);
+        await tx.productImage.deleteMany({ where: { productId } });
+        if (images.length > 0) {
+          await tx.productImage.createMany({
+            data: images.map((url, index) => ({
+              productId,
+              url,
+              sortOrder: index,
+              isCover: index === 0,
+            })),
+          });
+        }
+      }
+
+      const refreshed = await tx.product.findUnique({
+        where: { id: productId },
+        include: { images: { orderBy: { sortOrder: 'asc' } } },
+      });
+
+      if (!refreshed) {
+        const error = new Error('商品不存在');
+        (error as any).status = 404;
+        throw error;
+      }
+
+      return refreshed;
+    });
+
+    return normalizeProduct(record);
   }
 
   async updateStatus(productId: string, status: ProductStatus): Promise<Product> {
-    const product = await this.findById(productId);
-    if (!product) {
-      const error = new Error('商品不存在');
-      (error as any).status = 404;
-      throw error;
-    }
+    const record = await prisma.product.update({
+      where: { id: productId },
+      data: { status },
+      include: { images: { orderBy: { sortOrder: 'asc' } } },
+    });
 
-    product.status = status;
-    return product;
+    return normalizeProduct(record);
   }
 }
 

@@ -3,6 +3,7 @@ import { randomUUID } from 'crypto';
 import { CartRepository } from '../repositories/cart.repository';
 import { OrderRepository } from '../repositories/order.repository';
 import { ProductRepository } from '../repositories/product.repository';
+import { DEFAULT_FARMER_ID } from '../constants/farmer';
 import type { CartResult } from '../types/cart';
 import type {
   AfterSaleInfo,
@@ -22,8 +23,6 @@ import { calculateCartSummary } from './cart.service';
 const cartRepository = new CartRepository();
 const orderRepository = new OrderRepository();
 const productRepository = new ProductRepository();
-
-export const DEFAULT_FARMER_ID = 'farmer-self-operated';
 
 export type CreateOrderPayload = {
   contactName: string;
@@ -116,6 +115,18 @@ export class OrderService {
 
     const summary = calculateCartSummary(enrichedItems);
 
+    const farmerIds = new Set(
+      enrichedItems.map((item) => item.product.farmerId ?? DEFAULT_FARMER_ID),
+    );
+
+    if (farmerIds.size > 1) {
+      const error = new Error('当前订单包含多个农户的商品，请分单结算');
+      (error as any).status = 400;
+      throw error;
+    }
+
+    const orderFarmerId = farmerIds.values().next().value ?? DEFAULT_FARMER_ID;
+
     const orderItems = enrichedItems.map((item) => ({
       id: randomUUID(),
       productId: item.product.id,
@@ -144,7 +155,7 @@ export class OrderService {
     const orderBase: Omit<Order, 'note'> = {
       id: `order-${Date.now()}-${randomUUID().slice(0, 6)}`,
       userId,
-      farmerId: DEFAULT_FARMER_ID,
+      farmerId: orderFarmerId,
       status: 'pending',
       createdAt: now,
       subtotal: summary.subtotal,
