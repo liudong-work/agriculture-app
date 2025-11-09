@@ -57,6 +57,76 @@ async function main() {
     });
   }
 
+  const customerPasswordHash = await bcrypt.hash('customer123', 10);
+  await prisma.user.upsert({
+    where: { phone: '18900000001' },
+    update: {
+      passwordHash: customerPasswordHash,
+      name: '示例用户',
+      addresses: {
+        deleteMany: {},
+        create: [
+          {
+            contactName: '张三',
+            contactPhone: '18900000001',
+            province: '浙江省',
+            city: '杭州市',
+            district: '西湖区',
+            street: '欧美中心',
+            detail: '3号楼 1608 室',
+            postalCode: '310000',
+            tag: '公司',
+            isDefault: true,
+          },
+          {
+            contactName: '张三',
+            contactPhone: '18900000001',
+            province: '浙江省',
+            city: '杭州市',
+            district: '滨江区',
+            street: '江南大道 123 号',
+            detail: '江南星座 1-2-502',
+            tag: '家',
+            isDefault: false,
+          },
+        ],
+      },
+    },
+    create: {
+      phone: '18900000001',
+      passwordHash: customerPasswordHash,
+      name: '示例用户',
+      role: UserRole.customer,
+      addresses: {
+        create: [
+          {
+            contactName: '张三',
+            contactPhone: '18900000001',
+            province: '浙江省',
+            city: '杭州市',
+            district: '西湖区',
+            street: '欧美中心',
+            detail: '3号楼 1608 室',
+            postalCode: '310000',
+            tag: '公司',
+            isDefault: true,
+          },
+          {
+            contactName: '张三',
+            contactPhone: '18900000001',
+            province: '浙江省',
+            city: '杭州市',
+            district: '滨江区',
+            street: '江南大道 123 号',
+            detail: '江南星座 1-2-502',
+            tag: '家',
+            isDefault: false,
+          },
+        ],
+      },
+    },
+  });
+
   const farmerProfile = await prisma.farmerProfile.findUnique({ where: { id: DEFAULT_FARMER_ID } });
 
   if (farmerProfile) {
@@ -147,6 +217,7 @@ async function main() {
     console.log('✅ Seeded demo products');
   }
 
+  console.log('✅ Seeded demo customer with addresses');
   console.log('✅ Seeded default farmer accounts');
 }
 

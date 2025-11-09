@@ -17,11 +17,10 @@ const baseSchema = z.object({
   province: z.string().trim().min(1, '请选择省份'),
   city: z.string().trim().min(1, '请选择城市'),
   district: z.string().trim().min(1, '请选择区县'),
-  street: z.string().trim().min(1, '请填写街道地址'),
-  detail: z.string().trim().optional(),
-  postalCode: z.string().trim().optional(),
+  detail: z.string().trim().min(1, '请填写详细地址'),
   isDefault: z.boolean().optional(),
-  tag: z.string().trim().optional(),
+  longitude: z.number().optional(),
+  latitude: z.number().optional(),
 });
 
 const createSchema = z.object({
@@ -60,14 +59,11 @@ function sanitizePayload(payload: Record<string, unknown>): AddressPayload {
     isDefault: sanitized.isDefault ?? false,
   };
 
-  if (sanitized.detail !== undefined) {
-    result.detail = sanitized.detail;
+  if (sanitized.longitude !== undefined) {
+    result.longitude = sanitized.longitude;
   }
-  if (sanitized.postalCode !== undefined) {
-    result.postalCode = sanitized.postalCode;
-  }
-  if (sanitized.tag !== undefined) {
-    result.tag = sanitized.tag;
+  if (sanitized.latitude !== undefined) {
+    result.latitude = sanitized.latitude;
   }
 
   return result;

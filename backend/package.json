@@ -12,6 +12,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "prisma:seed": "prisma db seed",
+    "seed": "ts-node --project tsconfig.json --transpile-only prisma/seed.ts",
     "db:start": "docker compose up -d",
     "db:stop": "docker compose down",
     "db:logs": "docker compose logs -f",
@@ -49,6 +50,6 @@
     "typescript": "^5.9.3"
   },
   "prisma": {
-    "seed": "ts-node --transpile-only --skip-project prisma/seed.ts"
+    "seed": "npm run seed"
   }
 }

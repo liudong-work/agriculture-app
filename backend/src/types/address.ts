@@ -11,6 +11,8 @@ export type Address = {
   postalCode?: string;
   isDefault: boolean;
   tag?: string;
+  longitude?: number;
+  latitude?: number;
 };
 
 export type AddressPayload = Omit<Address, 'id' | 'userId'>;
