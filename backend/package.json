@@ -12,6 +12,10 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "prisma:seed": "prisma db seed",
+    "db:start": "docker compose up -d",
+    "db:stop": "docker compose down",
+    "db:logs": "docker compose logs -f",
+    "db:reset": "docker compose down -v",
     "lint": "echo 'no lint configured'",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
