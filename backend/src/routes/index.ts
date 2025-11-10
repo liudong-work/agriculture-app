@@ -8,6 +8,8 @@ import { addressRouter } from './address.routes';
 import { orderRouter } from './order.routes';
 import { uploadRouter } from './upload.routes';
 import { farmerOrderRouter } from './farmer-order.routes';
+import { farmerRouter } from './farmer.routes';
+import { subscriptionRouter } from './subscription.routes';
 
 export function registerRoutes(app: Express) {
   app.get('/health', (req: Request, res: Response) => {
@@ -20,8 +22,10 @@ export function registerRoutes(app: Express) {
   app.use('/api/v1/cart', cartRouter);
   app.use('/api/v1/orders', orderRouter);
   app.use('/api/v1/farmer/orders', farmerOrderRouter);
+  app.use('/api/v1/farmers', farmerRouter);
   app.use('/api/v1/addresses', addressRouter);
   app.use('/api/v1/uploads', uploadRouter);
+  app.use('/api/v1/subscriptions', subscriptionRouter);
 
   app.use((req: Request, res: Response) => {
     res.status(404).json({ success: false, message: '接口不存在' });

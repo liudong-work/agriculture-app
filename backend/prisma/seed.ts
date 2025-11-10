@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole } from '@prisma/client';
+import { PrismaClient, SubscriptionCycle, SubscriptionStatus, UserRole } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
 import { DEFAULT_FARMER_ID } from '../src/constants/farmer';
@@ -31,10 +31,12 @@ async function main() {
     },
   ] as const;
 
+  let primaryFarmerProfileId = DEFAULT_FARMER_ID;
+
   for (const farmer of farmers) {
     const passwordHash = await bcrypt.hash(farmer.password, 10);
 
-    await prisma.user.upsert({
+    const created = await prisma.user.upsert({
       where: { phone: farmer.phone },
       update: {
         passwordHash,
@@ -55,10 +57,14 @@ async function main() {
       },
       include: { farmerProfile: true },
     });
+
+    if (created.farmerProfile && farmer.farmerProfileId === DEFAULT_FARMER_ID) {
+      primaryFarmerProfileId = created.farmerProfile.id;
+    }
   }
 
   const customerPasswordHash = await bcrypt.hash('customer123', 10);
-  await prisma.user.upsert({
+  const customer = await prisma.user.upsert({
     where: { phone: '18900000001' },
     update: {
       passwordHash: customerPasswordHash,
@@ -125,11 +131,101 @@ async function main() {
         ],
       },
     },
+    include: {
+      addresses: true,
+    },
   });
 
-  const farmerProfile = await prisma.farmerProfile.findUnique({ where: { id: DEFAULT_FARMER_ID } });
+  const farmerProfile = await prisma.farmerProfile.findUnique({ where: { id: primaryFarmerProfileId } });
 
   if (farmerProfile) {
+    await prisma.farmerProfile.update({
+      where: { id: farmerProfile.id },
+      data: {
+        heroImage: 'https://images.unsplash.com/photo-1604335399105-a0c6f3dd9915?auto=format&fit=crop&w=1400&q=80',
+        region: '江西赣州·信丰县',
+        storyHeadline: '三代果农坚守，溯源到每一颗果子',
+        storyContent:
+          '我们坚持“日采日发”，通过田间地头的物联网采集与冷链出仓，让订单可以溯源到采摘时间与责任农户。合作社采用统一的绿色防控标准，确保土壤与水源安全。',
+        storyHighlights: ['下单后 12 小时内采摘', '全程冷链控温 5℃', '产地拥有绿色食品认证'],
+        storyGallery: [
+          {
+            type: 'image',
+            url: 'https://images.unsplash.com/photo-1506808547685-e2ba962dedf1?auto=format&fit=crop&w=1400&q=80',
+            caption: '合作社早晨采摘的脐橙装车现场',
+          },
+          {
+            type: 'image',
+            url: 'https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=1400&q=80',
+            caption: '品质检测中心抽检糖酸比',
+          },
+        ],
+        certifications: [
+          {
+            title: '绿色食品（A级）认证',
+            issuer: '中国绿色食品发展中心',
+            issuedAt: '2024-03-20',
+          },
+          {
+            title: '产地准出证明',
+            issuer: '信丰县农业农村局',
+            issuedAt: '2024-09-01',
+          },
+        ],
+      },
+    });
+
+    const storyEntries = [
+      {
+        id: 'seed-story-1',
+        title: '溯源第一站：凌晨 4 点的采摘记录',
+        content:
+          '凌晨 4 点，采摘队集合，按照订单明细分区采摘。每筐果子都会贴上溯源码，记录采摘人、果园地块和采摘时间。',
+        labels: ['溯源', '采摘'],
+        media: [
+          {
+            type: 'image',
+            url: 'https://images.unsplash.com/photo-1501004318641-b39e6451bec6?auto=format&fit=crop&w=1400&q=80',
+            description: '凌晨采摘后的装筐',
+          },
+        ],
+      },
+      {
+        id: 'seed-story-2',
+        title: '冷链出库：从合作社到城市前置仓',
+        content:
+          '上午 9 点，经过初级分级与预冷处理后，统一装入 5℃ 控温冷链车，发往杭州前置仓，中午 12 点完成入仓。系统会自动通知订阅用户预计送达时间。',
+        labels: ['冷链', '配送'],
+        media: [
+          {
+            type: 'image',
+            url: 'https://images.unsplash.com/photo-1551218808-94e220e084d2?auto=format&fit=crop&w=1400&q=80',
+            description: '冷链车辆装载现场',
+          },
+        ],
+      },
+    ];
+
+    for (const entry of storyEntries) {
+      await prisma.farmerStory.upsert({
+        where: { id: entry.id },
+        update: {
+          title: entry.title,
+          content: entry.content,
+          labels: entry.labels,
+          media: entry.media,
+        },
+        create: {
+          id: entry.id,
+          farmerId: farmerProfile.id,
+          title: entry.title,
+          content: entry.content,
+          labels: entry.labels,
+          media: entry.media,
+        },
+      });
+    }
+
     const products = [
       {
         id: 'seed-prod-1',
@@ -217,8 +313,69 @@ async function main() {
     console.log('✅ Seeded demo products');
   }
 
+  const seasonalBoxPlan = await prisma.subscriptionPlan.upsert({
+    where: { id: 'seed-plan-harvest-box' },
+    update: {
+      title: '丰收订阅箱（赣南产区）',
+      subtitle: '每周一次，脐橙 + 有机叶菜 + 当季伴手礼',
+      description:
+        '适合 2-3 人家庭，包含当周现摘脐橙 3kg、有机绿叶菜 2 份、以及合作社精选伴手礼 1 份。下单即绑定农户，产地直送。',
+      coverImage: 'https://images.unsplash.com/photo-1601000938259-9aa182b95b07?auto=format&fit=crop&w=1400&q=80',
+      price: 109.0,
+      originalPrice: 128.0,
+      cycle: SubscriptionCycle.weekly,
+      deliverWeekday: 5,
+      items: [
+        { name: '赣南脐橙', quantity: '3kg' },
+        { name: '有机绿叶菜', quantity: '2 份', description: '萝卜缨/上海青等随机搭配' },
+        { name: '伴手礼', quantity: '1 份', description: '农户自制果脯或蜂蜜' },
+      ],
+      benefits: ['下单即锁定产区配额', '可在前置仓自提或配送', '附带溯源故事更新'],
+      farmerId: farmerProfile?.id ?? null,
+      isActive: true,
+    },
+    create: {
+      id: 'seed-plan-harvest-box',
+      title: '丰收订阅箱（赣南产区）',
+      subtitle: '每周一次，脐橙 + 有机叶菜 + 当季伴手礼',
+      description:
+        '适合 2-3 人家庭，包含当周现摘脐橙 3kg、有机绿叶菜 2 份、以及合作社精选伴手礼 1 份。下单即绑定农户，产地直送。',
+      coverImage: 'https://images.unsplash.com/photo-1601000938259-9aa182b95b07?auto=format&fit=crop&w=1400&q=80',
+      price: 109.0,
+      originalPrice: 128.0,
+      cycle: SubscriptionCycle.weekly,
+      deliverWeekday: 5,
+      items: [
+        { name: '赣南脐橙', quantity: '3kg' },
+        { name: '有机绿叶菜', quantity: '2 份', description: '萝卜缨/上海青等随机搭配' },
+        { name: '伴手礼', quantity: '1 份', description: '农户自制果脯或蜂蜜' },
+      ],
+      benefits: ['下单即锁定产区配额', '可在前置仓自提或配送', '附带溯源故事更新'],
+      farmerId: farmerProfile?.id ?? null,
+    },
+  });
+
+  if (customer) {
+    await prisma.userSubscription.upsert({
+      where: { id: 'seed-user-subscription' },
+      update: {
+        planId: seasonalBoxPlan.id,
+        quantity: 1,
+        status: SubscriptionStatus.active,
+      },
+      create: {
+        id: 'seed-user-subscription',
+        userId: customer.id,
+        planId: seasonalBoxPlan.id,
+        quantity: 1,
+        status: SubscriptionStatus.active,
+      },
+    });
+  }
+
   console.log('✅ Seeded demo customer with addresses');
   console.log('✅ Seeded default farmer accounts');
+  console.log('✅ Seeded farmer story + subscription plans');
 }
 
 main()

@@ -32,6 +32,26 @@ export default function FarmerDashboardScreen() {
       color: '#1976d2',
       onPress: () => navigation.navigate('FarmerOrderList'),
     },
+    {
+      id: 'story',
+      title: '农户故事',
+      subtitle: '编辑溯源档案',
+      metric: '更新',
+      metricUnit: '',
+      icon: 'book-open-page-variant',
+      color: '#8e24aa',
+      onPress: () => navigation.navigate('FarmerStoryEditor'),
+    },
+    {
+      id: 'subscription',
+      title: '订阅计划',
+      subtitle: '固定配额箱',
+      metric: '1',
+      metricUnit: '个',
+      icon: 'cube-outline',
+      color: '#00796b',
+      onPress: () => navigation.navigate('FarmerSubscriptionManager'),
+    },
   ] as const;
 
   return (

@@ -65,6 +65,7 @@ model User {
   orders       Order[]      @relation("CustomerOrders")
   addresses    Address[]
   cartItems    CartItem[]
+  subscriptions UserSubscription[]
 }
 
 model FarmerProfile {
@@ -73,10 +74,19 @@ model FarmerProfile {
   userId      String   @unique
   farmName    String
   description String?
+  heroImage   String?
+  region      String?
+  storyHeadline String?
+  storyContent  String?
+  storyHighlights String[]
+  storyGallery Json?
+  certifications Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   products    Product[]
   orders      Order[]   @relation("FarmerOrders")
+  stories     FarmerStory[]
+  subscriptionPlans SubscriptionPlan[]
 }
 
 model Product {
@@ -135,6 +145,9 @@ model Order {
   statusHistory OrderStatusHistory[]
   logistics    OrderLogistics?
   afterSale    AfterSale?
+  subscription   UserSubscription? @relation(fields: [subscriptionId], references: [id])
+  subscriptionId String?
+  subscriptionDelivery SubscriptionDelivery?
 }
 
 model OrderItem {
@@ -229,4 +242,81 @@ model CartItem {
   selected  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model FarmerStory {
+  id          String         @id @default(uuid())
+  farmer      FarmerProfile  @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  farmerId    String
+  title       String
+  content     String
+  media       Json?
+  labels      String[]
+  publishedAt DateTime       @default(now())
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+enum SubscriptionCycle {
+  weekly
+  biweekly
+  monthly
+  seasonal
+}
+
+enum SubscriptionStatus {
+  active
+  paused
+  cancelled
+  completed
+}
+
+model SubscriptionPlan {
+  id            String         @id @default(uuid())
+  title         String
+  subtitle      String?
+  description   String?
+  coverImage    String?
+  price         Decimal        @db.Decimal(10, 2)
+  originalPrice Decimal?       @db.Decimal(10, 2)
+  cycle         SubscriptionCycle
+  deliverWeekday Int?
+  items         Json?
+  benefits      String[]
+  isActive      Boolean         @default(true)
+  farmer        FarmerProfile?  @relation(fields: [farmerId], references: [id], onDelete: SetNull)
+  farmerId      String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  subscriptions UserSubscription[]
+}
+
+model UserSubscription {
+  id              String              @id @default(uuid())
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String
+  plan            SubscriptionPlan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  planId          String
+  quantity        Int                 @default(1)
+  status          SubscriptionStatus  @default(active)
+  startDate       DateTime            @default(now())
+  nextDeliveryDate DateTime?
+  lastShipmentAt  DateTime?
+  notes           String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  orders          Order[]
+  deliveries      SubscriptionDelivery[]
+}
+
+model SubscriptionDelivery {
+  id               String             @id @default(uuid())
+  subscription     UserSubscription   @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  subscriptionId   String
+  scheduledDate    DateTime
+  status           String            @default("pending")
+  order            Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  orderId          String?           @unique
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 }

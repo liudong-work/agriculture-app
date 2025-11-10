@@ -86,8 +86,8 @@ export default function FarmerProductCreateScreen({ navigation, route }: Props) 
   const [previewStartIndex, setPreviewStartIndex] = useState(0);
   const previewScrollRef = useRef<ScrollView>(null);
 
-  const isEditMode = route.name === 'FarmerProductEdit';
-  const productId = isEditMode ? route.params.productId : undefined;
+  const isEditMode = route.name === 'FarmerProductEdit' || !!route.params?.productId;
+  const productId = route.name === 'FarmerProductEdit' ? route.params.productId : route.params?.productId;
 
   const {
     control,

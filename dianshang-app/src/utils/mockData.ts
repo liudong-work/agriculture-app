@@ -118,6 +118,7 @@ export const mockProducts: Product[] = [
 export const mockOrders: Order[] = [
   {
     id: 'order-20241105001',
+    farmerId: 'farmer-self-operated',
     status: 'pending',
     createdAt: '2024-11-05 10:12',
     subtotal: 134.9,
@@ -160,6 +161,7 @@ export const mockOrders: Order[] = [
   },
   {
     id: 'order-20241102021',
+    farmerId: 'farmer-self-operated',
     status: 'processing',
     createdAt: '2024-11-02 15:43',
     subtotal: 109.0,
@@ -197,6 +199,7 @@ export const mockOrders: Order[] = [
   },
   {
     id: 'order-20241028005',
+    farmerId: 'farmer-self-operated',
     status: 'shipped',
     createdAt: '2024-10-28 08:21',
     subtotal: 52.9,
@@ -262,6 +265,7 @@ export const mockOrders: Order[] = [
   },
   {
     id: 'order-20241020110',
+    farmerId: 'farmer-self-operated',
     status: 'completed',
     createdAt: '2024-10-20 12:05',
     subtotal: 69.9,

@@ -19,6 +19,11 @@ import FarmerProductCreateScreen from '../screens/FarmerProductCreateScreen';
 import FarmerProductListScreen from '../screens/FarmerProductListScreen';
 import FarmerOrderListScreen from '../screens/FarmerOrderListScreen';
 import FarmerOrderDetailScreen from '../screens/FarmerOrderDetailScreen';
+import FarmerStoryScreen from '../screens/FarmerStoryScreen';
+import SubscriptionPlanListScreen from '../screens/SubscriptionPlanListScreen';
+import SubscriptionPlanDetailScreen from '../screens/SubscriptionPlanDetailScreen';
+import FarmerStoryEditorScreen from '../screens/FarmerStoryEditorScreen';
+import FarmerSubscriptionManagerScreen from '../screens/FarmerSubscriptionManagerScreen';
 
 export type RootTabParamList = {
   HomeStack: NavigatorScreenParams<HomeStackParamList>;
@@ -31,6 +36,9 @@ export type RootTabParamList = {
 export type HomeStackParamList = {
   Home: undefined;
   ProductDetail: { productId: string };
+  FarmerStory: { farmerId: string; title?: string };
+  SubscriptionPlans: undefined;
+  SubscriptionPlanDetail: { planId: string };
 };
 
 export type CategoryStackParamList = {
@@ -52,8 +60,11 @@ export type ProfileStackParamList = {
   FarmerDashboard: undefined;
   FarmerProductList: undefined;
   FarmerProductCreate: { productId?: string } | undefined;
+  FarmerProductEdit: { productId: string };
   FarmerOrderList: undefined;
   FarmerOrderDetail: { orderId: string };
+  FarmerStoryEditor: undefined;
+  FarmerSubscriptionManager: undefined;
   AddressList: undefined;
   AddressForm: { mode: 'create' } | { mode: 'edit'; address: import('../types/address').Address };
 };
@@ -77,6 +88,23 @@ function HomeStackNavigator() {
         name="ProductDetail"
         component={ProductDetailScreen}
         options={{ title: '商品详情' }}
+      />
+      <HomeStack.Screen
+        name="FarmerStory"
+        component={FarmerStoryScreen}
+        options={({ route }) => ({
+          title: route.params.title ?? '农户故事',
+        })}
+      />
+      <HomeStack.Screen
+        name="SubscriptionPlans"
+        component={SubscriptionPlanListScreen}
+        options={{ title: '订阅鲜箱' }}
+      />
+      <HomeStack.Screen
+        name="SubscriptionPlanDetail"
+        component={SubscriptionPlanDetailScreen}
+        options={{ title: '订阅详情' }}
       />
     </HomeStack.Navigator>
   );
@@ -154,6 +182,11 @@ function ProfileStackNavigator() {
         })}
       />
       <ProfileStack.Screen
+        name="FarmerProductEdit"
+        component={FarmerProductCreateScreen}
+        options={{ title: '编辑商品' }}
+      />
+      <ProfileStack.Screen
         name="FarmerOrderList"
         component={FarmerOrderListScreen}
         options={{ title: '订单管理' }}
@@ -162,6 +195,16 @@ function ProfileStackNavigator() {
         name="FarmerOrderDetail"
         component={FarmerOrderDetailScreen}
         options={{ title: '订单详情' }}
+      />
+      <ProfileStack.Screen
+        name="FarmerStoryEditor"
+        component={FarmerStoryEditorScreen}
+        options={{ title: '农户故事编辑' }}
+      />
+      <ProfileStack.Screen
+        name="FarmerSubscriptionManager"
+        component={FarmerSubscriptionManagerScreen}
+        options={{ title: '订阅计划管理' }}
       />
       <ProfileStack.Screen
         name="AddressList"

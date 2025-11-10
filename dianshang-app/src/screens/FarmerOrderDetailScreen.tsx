@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ActivityIndicator,
@@ -37,12 +38,6 @@ const statusLabelMap: Record<OrderStatus, string> = {
   'after-sale': '售后中',
 };
 
-type RouteProps = {
-  params: {
-    orderId: string;
-  };
-};
-
 type LogisticsForm = {
   carrier: string;
   trackingNumber: string;
@@ -68,7 +63,7 @@ const statusActionMap: Partial<Record<OrderStatus, Array<{ label: string; next: 
 };
 
 export default function FarmerOrderDetailScreen() {
-  const route = useRoute<RouteProps>();
+  const route = useRoute<RouteProp<ProfileStackParamList, 'FarmerOrderDetail'>>();
   const navigation = useNavigation<NativeStackNavigationProp<ProfileStackParamList>>();
   const queryClient = useQueryClient();
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -93,7 +88,7 @@ export default function FarmerOrderDetailScreen() {
     refundAmount: '',
   });
 
-  const orderId = route.params?.orderId;
+  const { orderId } = route.params;
 
   const {
     data: order,
