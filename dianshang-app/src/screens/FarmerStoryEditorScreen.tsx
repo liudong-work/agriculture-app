@@ -30,9 +30,11 @@ export default function FarmerStoryEditorScreen() {
   const user = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
   const farmerId = user?.farmerProfileId;
+  const storyEditKey = ['farmer-story-edit', farmerId ?? ''] as const;
+  const storyViewKey = ['farmer-story', farmerId ?? ''] as const;
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['farmer-story-edit', farmerId],
+    queryKey: storyEditKey,
     queryFn: () => fetchFarmerStory(farmerId ?? ''),
     enabled: Boolean(farmerId),
   });
@@ -62,8 +64,8 @@ export default function FarmerStoryEditorScreen() {
   const updateMutation = useMutation({
     mutationFn: (payload: UpdateFarmerStoryPayload) => updateFarmerStory(farmerId ?? '', payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['farmer-story-edit', farmerId] });
-      queryClient.invalidateQueries({ queryKey: ['farmer-story', farmerId] });
+      queryClient.invalidateQueries({ queryKey: storyEditKey });
+      queryClient.invalidateQueries({ queryKey: storyViewKey });
       Alert.alert('保存成功', '农户故事已更新。');
     },
     onError: (error: any) => {
@@ -75,8 +77,8 @@ export default function FarmerStoryEditorScreen() {
     mutationFn: (payload: CreateFarmerStoryEntryPayload) =>
       createFarmerStoryEntry(farmerId ?? '', payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['farmer-story-edit', farmerId] });
-      queryClient.invalidateQueries({ queryKey: ['farmer-story', farmerId] });
+      queryClient.invalidateQueries({ queryKey: storyEditKey });
+      queryClient.invalidateQueries({ queryKey: storyViewKey });
       Alert.alert('已发布', '故事节点已添加至时间轴。');
     },
     onError: (error: any) => {
